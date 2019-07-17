@@ -14,6 +14,10 @@ site_title=${site_title:-"My Awesome Photos"}
 
 theme_dir=${theme_dir:-"theme1"}
 
+site_dir=${site_dir:-"$topdir/_site"}
+
+content_dir=${content_dir:-"$topdir"}
+
 # widths to scale images to (heights are calculated from source images)
 # you might want to change this for example, if your images aren't full screen on the browser side
 resolution=(3840 2560 1920 1280 1024 640)
@@ -115,7 +119,7 @@ else
 fi
 
 # directory structure will form nav structure
-paths=() # relevant non-empty dirs in $topdir
+paths=() # relevant non-empty dirs in $content_dir
 nav_name=() # a front-end friendly label for each item in paths[], with numeric prefixes stripped
 nav_depth=() # depth of each navigation item
 nav_type=() # 0 = structure, 1 = leaf. Where a leaf directory is a gallery of images
@@ -137,7 +141,7 @@ gallery_video_options=() # video commands extracted from post metadata
 gallery_video_filters=() # filter commands added to ffmpeg calls
 
 # scan working directory to populate $nav variables
-root_depth=$(echo "$topdir" | awk -F"/" "{ print NF }")
+root_depth=$(echo "$content_dir" | awk -F"/" "{ print NF }")
 
 # if on cygwin, transforms given param to windows style path
 winpath () {
@@ -196,7 +200,7 @@ while read node
 do
 	printf "."
 	
-	if [ "$node" = "$topdir/_site" ]
+	if [ "$node" = "$site_dir" ]
 	then
 		continue
 	fi
@@ -204,7 +208,7 @@ do
 	node_depth=$(echo "$node" | awk -F"/" "{ print NF-$root_depth }")
 	
 	# ignore empty directories
-	if find "$node" -maxdepth 0 -empty | read v
+	if find -L "$node" -maxdepth 0 -empty | read v
 	then
 		continue
 	fi
@@ -215,8 +219,8 @@ do
 		node_name=$(basename "$node")
 	fi
 		
-	dircount=$(find "$node" -maxdepth 1 -type d ! -path "$node" ! -path "$node*/_*" | wc -l)
-	dircount_sequence=$(find "$node" -maxdepth 1 -type d ! -path "$node" ! -path "$node*/_*" ! -path "$node/*$sequence_keyword*" | wc -l)
+	dircount=$(find -L "$node" -maxdepth 1 -type d ! -path "$node" ! -path "$node*/_*" | wc -l)
+	dircount_sequence=$(find -L "$node" -maxdepth 1 -type d ! -path "$node" ! -path "$node*/_*" ! -path "$node/*$sequence_keyword*" | wc -l)
 	
 	if [ "$dircount" -gt 0 ]
 	then
@@ -239,14 +243,14 @@ do
 	nav_name+=("$node_name")
 	nav_depth+=("$node_depth")
 	nav_type+=("$node_type")
-done < <(find "$topdir" -type d ! -path "$topdir*/_*" | sort)
+done < <(find -L "$content_dir" -type d ! -path "$content_dir*/_*" | sort)
 
 # re-create directory structure
-mkdir -p "$topdir/_site"
+mkdir -p "$site_dir"
 
 dir_stack=()
 url_rel=""
-nav_url+=(".") # first item in paths will always be $topdir
+nav_url+=(".") # first item in paths will always be $content_dir
 
 printf "\nPopulating nav"
 
@@ -287,7 +291,7 @@ do
 	done
 	
 	url+="$url_rel"
-	mkdir -p "$topdir/_site/$url"
+	mkdir -p "$site_dir/$url"
 	
 	nav_url+=("$url")
 done
@@ -307,7 +311,7 @@ do
 	name="${nav_name[i]}"
 	url="${nav_url[i]}"
 	
-	mkdir -p "$topdir"/_site/"$url"
+	mkdir -p "$content_dir"/_site/"$url"
 
 	index=0
 	
@@ -333,7 +337,7 @@ do
 		if [ -d "$file" ] && [ $(echo "$filename" | grep "$sequence_keyword" | wc -l) -gt 0 ]
 		then
 			format="sequence"
-			image=$(find "$file" -maxdepth 1 ! -path "$file" -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.png" | sort | head -n 1)
+			image=$(find -L "$file" -maxdepth 1 ! -path "$file" -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.png" | sort | head -n 1)
 		else
 			extension=$(echo "${filename##*.}" | tr '[:upper:]' '[:lower:]')
 		
@@ -441,7 +445,7 @@ do
 		gallery_maxwidth+=("$maxwidth")
 		gallery_maxheight+=("$maxheight")
 		gallery_colors+=("$palette")
-	done < <(find "$dir" -maxdepth 1 ! -path "$dir" ! -path "$dir*/_*" | sort)
+	done < <(find -L "$dir" -maxdepth 1 ! -path "$dir" ! -path "$dir*/_*" | sort)
 	
 	nav_count[i]="$index"
 done
@@ -493,7 +497,7 @@ do
 			type="video"
 		fi
 		
-		textfile=$(find "$filedir/$filename".txt "$filedir/$filename".md ! -path "$file_path" -print -quit 2>/dev/null)
+		textfile=$(find -L "$filedir/$filename".txt "$filedir/$filename".md ! -path "$file_path" -print -quit 2>/dev/null)
 		
 		metadata=""
 		content=""
@@ -704,7 +708,7 @@ do
 	# remove references to any unused {{xxx}} template variables and empty <ul>s from navigation
 	html=$(echo "$html" | sed "s/{{[^}]*}}//g; s/<ul><\/ul>//g")
 	
-	echo "$html" > "$topdir/_site/${nav_url[i]}"/index.html
+	echo "$html" > "$site_dir/${nav_url[i]}"/index.html
 	
 done
 
@@ -716,7 +720,7 @@ firsthtml=$(template "$firsthtml" disqus_identifier "$firstpath")
 firsthtml=$(template "$firsthtml" resourcepath "$firstpath/")
 firsthtml=$(echo "$firsthtml" | sed "s/{{[^{}]*:\([^}]*\)}}/\1/g")
 firsthtml=$(echo "$firsthtml" | sed "s/{{[^}]*}}//g; s/<ul><\/ul>//g")
-echo "$firsthtml" > "$topdir/_site"/index.html
+echo "$firsthtml" > "$site_dir"/index.html
 
 printf "\nStarting encode\n"
 
@@ -728,7 +732,7 @@ do
 	navindex="${gallery_nav[i]}"
 	url="${nav_url[navindex]}/${gallery_url[i]}"
 	
-	mkdir -p "$topdir/_site/$url"
+	mkdir -p "$site_dir/$url"
 	
 	if [ "${gallery_type[i]}" = 0 ]
 	then		
@@ -757,7 +761,7 @@ do
 						fi
 					done
 					
-					if [ ! -s "$topdir/_site/$url/$videofile" ]
+					if [ ! -s "$site_dir/$url/$videofile" ]
 					then
 						seqfinished=false
 						break
@@ -779,7 +783,7 @@ do
 				tempname=$(printf "%04d" "$j")
 				cp "$seqfile" "$scratchdir/$tempname"
 				((j++))
-			done < <(find "$filepath" -maxdepth 1 ! -path "$filepath" -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.png" | sort)
+			done < <(find -L "$filepath" -maxdepth 1 ! -path "$filepath" -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.gif" -o -iname "*.png" | sort)
 			sequencevideo="$scratchdir/sequencevideo.mp4"
 			
 			maxres=$(printf '%s\n' "${resolution[@]}" | sort -n | tail -n 1)
@@ -819,7 +823,7 @@ do
 		if [ "$draft" = true ]
 		then
 			# if in draft mode, use single pass CRF coding with ultrafast preset
-			output_url=$(winpath "$topdir/_site/$url/${resolution[0]}-h264.mp4")
+			output_url=$(winpath "$site_dir/$url/${resolution[0]}-h264.mp4")
 			
 			[ -s "$output_url" ] && continue
 			
@@ -848,9 +852,9 @@ do
 							fi
 						done
 						
-						[ -s "$topdir/_site/$url/$videofile" ] && continue
+						[ -s "$site_dir/$url/$videofile" ] && continue
 						
-						output_url=$(winpath "$topdir/_site/$url/$videofile")
+						output_url=$(winpath "$site_dir/$url/$videofile")
 						nullpath=$(winpath "/dev/null")
 						
 						echo -e "\tEncoding $vformat $res x $scaled_height"
@@ -934,17 +938,17 @@ do
 	for res in "${resolution[@]}"
 	do
 		((count++))
-		[ -e "$topdir/_site/$url/$res.jpg" ] && continue
+		[ -e "$site_dir/$url/$res.jpg" ] && continue
 		
 		# only downscale original image
 		if [ "$width" -ge "$res" ] || [ "$count" -eq "${#resolution[@]}" ]
 		then
-			convert $autorotateoption -size "$res"x"$res" "$image" -resize "$res"x"$res" -quality "$jpeg_quality" +profile '*' $options "$topdir/_site/$url/$res.jpg"
+			convert $autorotateoption -size "$res"x"$res" "$image" -resize "$res"x"$res" -quality "$jpeg_quality" +profile '*' $options "$site_dir/$url/$res.jpg"
 		fi
 	done
 	
 	# write zip file
-	if [ "$download_button" = true ] && [ ! -e "$topdir/_site/$url/${gallery_url[i]}.zip" ]
+	if [ "$download_button" = true ] && [ ! -e "$site_dir/$url/${gallery_url[i]}.zip" ]
 	then
 		mkdir "$scratchdir/zip"
 		
@@ -961,14 +965,14 @@ do
 		
 		chmod -R 740 "$scratchdir/zip"
 		
-		cd "$scratchdir/zip" && zip -r "$topdir/_site/$url/${gallery_url[i]}.zip" ./
-		cd "$topdir"
+		cd "$scratchdir/zip" && zip -r "$site_dir/$url/${gallery_url[i]}.zip" ./
+		cd "$content_dir"
 	fi
 	
 	rm -rf "${scratchdir:?}/"*
 done
 
 # copy resources to _site
-rsync -av --exclude="template.html" --exclude="post-template.html" "$scriptdir/$theme_dir/" "$topdir/_site/" >/dev/null
+rsync -av --exclude="template.html" --exclude="post-template.html" "$scriptdir/$theme_dir/" "$site_dir/" >/dev/null
 
 cleanup
