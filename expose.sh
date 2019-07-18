@@ -20,7 +20,7 @@ content_dir=${content_dir:-"$topdir"}
 
 # widths to scale images to (heights are calculated from source images)
 # you might want to change this for example, if your images aren't full screen on the browser side
-resolution=(3840 2560 1920 1280 1024 640)
+resolution=(2560 1920 1280 1024 640)
 
 # jpeg compression quality for static photos
 jpeg_quality=${jpeg_quality:-92}
@@ -29,7 +29,7 @@ jpeg_quality=${jpeg_quality:-92}
 autorotate=${autorotate:-true}
 
 # formats to encode to, list in order of preference. Available formats are vp9, vp8, h264, h265, ogv
-video_formats=(h264 vp8)
+video_formats=(h264)
 
 # video quality - target bitrates in MBit/s matched to each resolution
 # feel free to ignore this if you don't have any videos.
