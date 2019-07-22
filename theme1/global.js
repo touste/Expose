@@ -57,9 +57,9 @@ function redrawtext(){
 $(document).ready(function(){
 
 	// set slide heights to prevent reflow
-	$('.slide').each(function(){
-		$(this).css('padding-top', (100*$(this).data('imageheight')/$(this).data('imagewidth')) + '%');
-	});
+	//$('.slide').each(function(){
+	//	$(this).css('height', ($(window).width()*$(this).data('imageheight')/$(this).data('imagewidth')) + 'px');
+	//});
 	
 	resourcepath = $('body').data('respath');
 	
@@ -246,15 +246,15 @@ $(document).ready(function(){
 	// add marker
 	var mheight = 100/$('.slide').length;
 	$('.slide').each(function(i, v){
-		var color1 = $(this).data('color1');
-		var color7 = $(this).data('color7');
-		if(!color1){
-			color1 = '#000';
+		var colorl = $(this).data('color4');
+		var colorh = $(this).data('color5');
+		if(!colorl){
+			colorl = '#000';
 		}
-		if(!color7){
-			color7 = '#fff';
+		if(!colorh){
+			colorh = '#fff';
 		}
-		$('#marker').append('<li style="background-color: '+color1+'; height: '+mheight+'%"><a href="#'+(i+1)+'" style="background-color: '+color7+'"></a></li>');
+		$('#marker').append('<li style="background-color: '+colorl+'; height: '+mheight+'%"><a href="#'+(i+1)+'" style="background-color: '+colorh+'"></a></li>');
 	});
 	
 });
@@ -342,6 +342,11 @@ function scrollcheck(){
 		$(current_slide).prevAll().filter('.slide').slice(0,2).find('img.image').addClass('active');
 		
 		// set custom colors
+		var background = $(current_slide).data('color1');
+		if(background){
+			$('#main').css('background-color',background);
+		}
+
 		var sidebackground = $(current_slide).data('color2');
 		if(sidebackground){
 			$('#sidebar .background').css('background-color',sidebackground);

@@ -18,9 +18,9 @@ site_dir=${site_dir:-"$topdir/_site"}
 
 content_dir=${content_dir:-"$topdir"}
 
-# widths to scale images to (heights are calculated from source images)
+#  heights to scale images to (widths are calculated from source images)
 # you might want to change this for example, if your images aren't full screen on the browser side
-resolution=(2560 1920 1280 1024 640)
+resolution=(2160 1440 1080 720 480)
 
 # jpeg compression quality for static photos
 jpeg_quality=${jpeg_quality:-92}
@@ -28,18 +28,22 @@ jpeg_quality=${jpeg_quality:-92}
 # jpeg image autorotation
 autorotate=${autorotate:-true}
 
-# formats to encode to, list in order of preference. Available formats are vp9, vp8, h264, h265, ogv
+# formats to encode to, list in order of preference. Available formats are vp9, vp8, h264, h265
 video_formats=(h264)
 
 # video quality - target bitrates in MBit/s matched to each resolution
 # feel free to ignore this if you don't have any videos.
 # the defaults are about 3x vimeo/youtube bitrates to match photographic quality. Personal tolerance to compression artefacts vary, so adjust to taste.
 
-bitrate=(40 24 12 7 4 2)
+bitrate=(40 16 8 5 2)
+
+crf=${crf:-23}
 
 bitrate_maxratio=${bitrate_maxratio:-2} # a multiple of target bitrate to get max bitrate for VBR encoding. must be > 1. Higher ratio gives better quality on scenes with lots of movement. Ratio=1 reduces to CBR encoding
 
 disable_audio=${disable_audio:-true}
+
+stabilize=${stabilize:-false}
 
 # extract a representative palette for each photo/video and use those colors for background/text/accent etc
 extract_colors=${extract_colors:-true}
@@ -82,7 +86,7 @@ command -v convert >/dev/null 2>&1 || { echo "ImageMagick is a required dependen
 command -v identify >/dev/null 2>&1 || { echo "ImageMagick is a required dependency, aborting..." >&2; exit 1; }
 
 # file extensions for each video format
-video_format_extensions=("h264" "mp4" "h265" "mp4" "vp9" "webm" "vp8" "webm" "ogv" "ogv")
+video_format_extensions=("h264" "mp4" "h265" "mp4" "vp9" "webm" "vp8" "webm")
 
 draft=false
 # the -d flag has been set
@@ -178,6 +182,7 @@ cleanup() {
 	rm -f ffmpeg*.log
 	rm -f ffmpeg*.mbtree
 	rm -f ffmpeg*.temp
+	rm -f transforms.trf 
 	
 	if [ -d "$scratchdir" ]
     then
@@ -387,7 +392,7 @@ do
 				
 		if [ "$extract_colors" = true ]
 		then
-			palette=$(convert "$image" -resize 200x200 -depth 4 +dither -colors 7 -unique-colors txt:- | tail -n +2 | awk 'BEGIN{RS=" "} /#/ {print}' 2>&1)
+			palette=$(convert "$image" -resize 200x200 -depth 3 +dither -colors 7 -unique-colors txt:- | tail -n +2 | awk 'BEGIN{RS=" "} /#/ {print}' 2>&1)
 		else
 			palette=""
 			for p in "${default_palette[@]}"
@@ -396,12 +401,15 @@ do
 			done
 		fi
 		# If autorotate is enabled, and the EXIF orientation exists, and the orientation is between 5 and 8 (vertical codes)
-		orientation=$(identify -format "%[EXIF:Orientation]" "$image")
-		if [ "$autorotate" = true ] && [ -n "$orientation" ] && [ $orientation -ge 5 ] && [ $orientation -le 8 ]
+		if [ "$autorotate" = true ] 
 		then
-			# If the image is rotated, swap the height and width
-			width=$(identify -format "%h" "$image")
-			height=$(identify -format "%w" "$image")
+			orientation=$(identify -format "%[EXIF:Orientation]" "$image")
+			if [ -n "$orientation" ] && [ $orientation -ge 5 ] && [ $orientation -le 8 ]
+			then
+				# If the image is rotated, swap the height and width
+				width=$(identify -format "%h" "$image")
+				height=$(identify -format "%w" "$image")
+			fi
 		else
 			width=$(identify -format "%w" "$image")
 			height=$(identify -format "%h" "$image")
@@ -415,14 +423,14 @@ do
 		do
 			((count++))
 			# store max values for later use
-			if [ "$width" -ge "$res" ] && [ "$res" -gt "$maxwidth" ]
+			if [ "$height" -ge "$res" ] && [ "$res" -gt "$maxheight" ]
 			then
-				maxwidth="$res"
-				maxheight=$((res*height/width))
-			elif [ "$maxwidth" -eq 0 ] && [ "$count" = "${#resolution[@]}" ]
+				maxheight="$res"
+				maxwidth=$((res*width/height))
+			elif [ "$maxheight" -eq 0 ] && [ "$count" = "${#resolution[@]}" ]
 			then
-				maxwidth="$res"
-				maxheight=$((res*height/width))
+				maxheight="$res"
+				maxwidth=$((res*width/height))
 			fi
 		done
 				
@@ -532,7 +540,8 @@ do
 			((z++))
 		done < <(echo "${gallery_colors[gallery_index]}")
 		
-		backgroundcolor=$(echo "${gallery_colors[gallery_index]}" | sed -n 2p)
+		backgroundcolor=$(echo "${gallery_colors[gallery_index]}" | sed -n 1p)
+		
 		if [ "$override_textcolor" = false ]
 		then
 			textcolor=$(echo "${gallery_colors[gallery_index]}" | tail -1)
@@ -788,12 +797,13 @@ do
 			
 			maxres=$(printf '%s\n' "${resolution[@]}" | sort -n | tail -n 1)
 			
-			ffmpeg -loglevel error -nostdin -f image2 -y -i "$scratchdir/%04d" -c:v libx264 -threads "$ffmpeg_threads" -vf scale="$maxres:trunc(ow/a/2)*2" -profile:v high -pix_fmt yuv420p -preset "$h264_encodespeed" -crf 15 -r "$sequence_framerate" -f mp4 "$sequencevideo"
+			ffmpeg -loglevel error -nostdin -f image2 -y -i "$scratchdir/%04d" -c:v libx264 -threads "$ffmpeg_threads" -vf scale="trunc(oh*a/2)*2:$maxres" -profile:v high -pix_fmt yuv420p -preset "$h264_encodespeed" -crf 18 -r "$sequence_framerate" -f mp4 "$sequencevideo"
 			
 			filepath="$sequencevideo"
 		fi
 		
 		filepath=$(winpath "$filepath")
+		nullpath=$(winpath "/dev/null")
 		
 		# use ffmpeg to encode h264 videos for each resolution
 		dimensions=$(ffprobe -v error -of flat=s=_ -select_streams v:0 -show_entries stream=width,height "$filepath")
@@ -810,7 +820,11 @@ do
 		if [ ! -z "${gallery_video_filters[i]}" ]
 		then
 			filters=",${gallery_video_filters[i]}"
-			filtersfull="-vf ${gallery_video_filters[i]}"
+		fi
+		
+		if [ "$stabilize" = true ]
+		then
+			filters="$filters,vidstabtransform=input='transforms.trf',unsharp=5:5:0.8:3:3:0.4"
 		fi
 		
 		if [ "$disable_audio" = true ]
@@ -819,6 +833,7 @@ do
 		else
 			audio="-c:a copy"
 		fi
+
 		
 		if [ "$draft" = true ]
 		then
@@ -827,19 +842,25 @@ do
 			
 			[ -s "$output_url" ] && continue
 			
-			ffmpeg -loglevel error -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf scale="${resolution[0]}:trunc(ow/a/2)*2$filters" -profile:v high -pix_fmt yuv420p -preset ultrafast -crf 26 $audio -movflags +faststart -f mp4 "$output_url"
+			ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:${resolution[0]}$filters" -profile:v high -pix_fmt yuv420p -preset ultrafast -crf 18 $audio -movflags +faststart -f mp4 "$output_url"
 		else
+			
+			if [ "$stabilize" = true ]
+			then
+				ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -threads "$ffmpeg_threads" -vf vidstabdetect -f null "$nullpath" || continue # if we can't encode the video, skip this file entirely. Possibly not a video file
+			fi
+			
+			
 			for vformat in "${video_formats[@]}"
 			do
-				firstpass=false
 				for j in "${!resolution[@]}"
 				do					
 					res="${resolution[$j]}"
-					if [ "$width" -ge "$res" ]
+					if [ "$height" -ge "$res" ]
 					then
 						mbit="${bitrate[$j]}"
 						mbitmax=$(( mbit*bitrate_maxratio ))
-						scaled_height=$(( height*res/width ))
+						scaled_width=$(( width*res/height ))
 						
 						videofile="$res-$vformat."
 						
@@ -855,58 +876,30 @@ do
 						[ -s "$site_dir/$url/$videofile" ] && continue
 						
 						output_url=$(winpath "$site_dir/$url/$videofile")
-						nullpath=$(winpath "/dev/null")
 						
-						echo -e "\tEncoding $vformat $res x $scaled_height"
+						echo -e "\tEncoding $vformat $scaled_width x $res"
 						
-						# h265 2 pass encode
+
+						# h265 encode
 						if [ "$vformat" = "h265" ]
 						then
-							if [ "$firstpass" = false ]
-							then
-								firstpass=true # only need to do first pass once
-								ffmpeg -loglevel error -nostdin -y -i "$filepath" -c:v libx265 -threads "$ffmpeg_threads" $options $filtersfull -pix_fmt yuv420p -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f mp4 "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
-							fi
-							
-							ffmpeg -loglevel error -nostdin -i "$filepath" -c:v libx265 -threads "$ffmpeg_threads" $options -vf scale="$res:trunc(ow/a/2)*2$filters" -pix_fmt yuv420p -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 "$audio" -movflags +faststart -f mp4 "$output_url"
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx265 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -crf "$crf" "$audio" -movflags +faststart -f mp4 "$output_url"
 						
-						# h264 2 pass encode
+						# h264 encode
 						elif [ "$vformat" = "h264" ]
 						then
-							if [ "$firstpass" = false ]
-							then
-								firstpass=true # only need to do first pass once
-								ffmpeg -loglevel error -nostdin -y -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options $filtersfull -profile:v high -pix_fmt yuv420p -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f mp4 "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
-							fi
-							
-							ffmpeg -loglevel error -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf scale="$res:trunc(ow/a/2)*2$filters"  -profile:v high -pix_fmt yuv420p -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 $audio -movflags +faststart -f mp4 "$output_url"
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -profile:v high -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -crf "$crf" $audio -movflags +faststart -f mp4 "$output_url"
 						
-						# VP9 2 pass encode
+						# VP9 encode
 						elif [ "$vformat" = "vp9" ]
 						then
-							if [ "$firstpass" = false ]
-							then
-								firstpass=true # only need to do first pass once
-								ffmpeg -loglevel error -nostdin -y -i "$filepath" -c:v libvpx-vp9 -threads "$ffmpeg_threads" $options $filtersfull -pix_fmt yuv420p -speed 4 -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f webm "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
-							fi
-							
-							ffmpeg -loglevel error -nostdin -i "$filepath" -c:v libvpx-vp9 -threads "$ffmpeg_threads" $options -vf scale="$res:trunc(ow/a/2)*2$filters" -pix_fmt yuv420p -speed "$vp9_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 $audio -f webm "$output_url"
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libvpx-vp9 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -speed "$vp9_encodespeed" -crf "$crf" $audio -f webm "$output_url"
 						
-						# VP8 2 pass encode
+						# VP8 pass encode
 						elif [ "$vformat" = "vp8" ]
 						then
-							if [ "$firstpass" = false ]
-							then
-								firstpass=true # only need to do first pass once
-								ffmpeg -loglevel error -nostdin -y -i "$filepath" -c:v libvpx -threads "$ffmpeg_threads" $options $filtersfull -pix_fmt yuv420p -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f webm "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
-							fi
-							
-							ffmpeg -loglevel error -nostdin -i "$filepath" -c:v libvpx -threads "$ffmpeg_threads" $options -vf scale="$res:trunc(ow/a/2)*2$filters" -pix_fmt yuv420p -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 $audio -f webm "$output_url"
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libvpx -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -crf "$crf" $audio -f webm "$output_url"
 						
-						# Theora 1 pass encode
-						elif [ "$vformat" = "ogv" ]
-						then
-							ffmpeg -loglevel error -nostdin -i "$filepath" -c:v libtheora -threads "$ffmpeg_threads" $options -vf scale="$res:trunc(ow/a/2)*2$filters" -pix_fmt yuv420p -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M $audio "$output_url"
 						fi
 					fi
 				done
@@ -941,9 +934,9 @@ do
 		[ -e "$site_dir/$url/$res.jpg" ] && continue
 		
 		# only downscale original image
-		if [ "$width" -ge "$res" ] || [ "$count" -eq "${#resolution[@]}" ]
+		if [ "$height" -ge "$res" ] || [ "$count" -eq "${#resolution[@]}" ]
 		then
-			convert $autorotateoption -size "$res"x"$res" "$image" -resize "$res"x"$res" -quality "$jpeg_quality" +profile '*' $options "$site_dir/$url/$res.jpg"
+			convert $autorotateoption "$image" -geometry x"$res" -quality "$jpeg_quality" +profile '*' $options "$site_dir/$url/$res.jpg"
 		fi
 	done
 	
