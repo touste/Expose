@@ -29,15 +29,13 @@ jpeg_quality=${jpeg_quality:-92}
 autorotate=${autorotate:-true}
 
 # formats to encode to, list in order of preference. Available formats are vp9, vp8, h264, h265
-video_formats=(h264)
+video_formats=(vp9 h264)
 
 # video quality - target bitrates in MBit/s matched to each resolution
 # feel free to ignore this if you don't have any videos.
 # the defaults are about 3x vimeo/youtube bitrates to match photographic quality. Personal tolerance to compression artefacts vary, so adjust to taste.
 
-bitrate=(40 16 8 5 2)
-
-crf=${crf:-23}
+bitrate=(32 16 8 5 2)
 
 bitrate_maxratio=${bitrate_maxratio:-2} # a multiple of target bitrate to get max bitrate for VBR encoding. must be > 1. Higher ratio gives better quality on scenes with lots of movement. Ratio=1 reduces to CBR encoding
 
@@ -75,7 +73,7 @@ sequence_keyword=${sequence_keyword:-"imagesequence"} # if a directory name cont
 sequence_framerate=${sequence_framerate:-24} # sequence framerat
 
 # specific codec options here
-h264_encodespeed=${h264_encodespeed:-"veryslow"} # h264 encode speed, slower produces better compression results. Options are ultrafast,superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+h264_encodespeed=${h264_encodespeed:-"slow"} # h264 encode speed, slower produces better compression results. Options are ultrafast,superfast, veryfast, faster, fast, medium, slow, slower, veryslow
 vp9_encodespeed=${vp9_encodespeed:-1} # VP9 encode speed, 0 is best and slowest, 4 for fastest. VP9 is very slow to encode in general. Note that 0 is dramatically slower than 1 with marginal quality improvement
 
 ffmpeg_threads=${ffmpeg_threads:-0} # the -threads option for ffmpeg encode (0=auto). This could be useful, for example if you need to throttle CPU load on a server that's doing other things.
@@ -817,14 +815,23 @@ do
 		fi
 		
 		filters=""
+		filtersfull=""
 		if [ ! -z "${gallery_video_filters[i]}" ]
 		then
 			filters=",${gallery_video_filters[i]}"
+			filtersfull="-vf ${gallery_video_filters[i]}"
 		fi
 		
+		filterstab=""
 		if [ "$stabilize" = true ]
 		then
-			filters="$filters,vidstabtransform=input='transforms.trf',unsharp=5:5:0.8:3:3:0.4"
+			filterstab="vidstabtransform=smoothing=20:input='transforms.trf',unsharp=5:5:0.8:3:3:0.4,"
+			if [ -z "$filtersfull" ]
+			then
+				filtersfull="-vf vidstabtransform=smoothing=20:input='transforms.trf',unsharp=5:5:0.8:3:3:0.4"
+			else
+				filtersfull="$filterstab$filtersfull"
+			fi
 		fi
 		
 		if [ "$disable_audio" = true ]
@@ -845,14 +852,12 @@ do
 			ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:${resolution[0]}$filters" -profile:v high -pix_fmt yuv420p -preset ultrafast -crf 18 $audio -movflags +faststart -f mp4 "$output_url"
 		else
 			
-			if [ "$stabilize" = true ]
-			then
-				ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -threads "$ffmpeg_threads" -vf vidstabdetect -f null "$nullpath" || continue # if we can't encode the video, skip this file entirely. Possibly not a video file
-			fi
-			
+			firstpass_stab=false
 			
 			for vformat in "${video_formats[@]}"
 			do
+				firstpass=false
+
 				for j in "${!resolution[@]}"
 				do					
 					res="${resolution[$j]}"
@@ -880,26 +885,58 @@ do
 						echo -e "\tEncoding $vformat $scaled_width x $res"
 						
 
+						if [ "$stabilize" = true ] && [ "$firstpass_stab" = false ]
+						then
+							firstpass_stab=true # Only need to do this once
+							ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -threads "$ffmpeg_threads" -vf vidstabdetect -f null "$nullpath" || continue # if we can't encode the video, skip this file entirely. Possibly not a video file
+						fi
+
 						# h265 encode
 						if [ "$vformat" = "h265" ]
 						then
-							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx265 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -crf "$crf" "$audio" -movflags +faststart -f mp4 "$output_url"
-						
+							if [ "$firstpass" = false ]
+							then
+								firstpass=true # only need to do first pass once
+								ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -c:v libx265 -threads "$ffmpeg_threads" $options $filtersfull -profile:v high -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f mp4 "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
+
+							fi
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx265 -threads "$ffmpeg_threads" $options -vf "${filterstab}scale=trunc(oh*a/2)*2:$res$filters" -profile:v high -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 "$audio" -movflags +faststart -f mp4 "$output_url"
 						# h264 encode
 						elif [ "$vformat" = "h264" ]
 						then
-							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -profile:v high -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -crf "$crf" $audio -movflags +faststart -f mp4 "$output_url"
+							if [ "$firstpass" = false ]
+							then
+								firstpass=true # only need to do first pass once
+								ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options $filtersfull -profile:v high -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f mp4 "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
+							fi
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libx264 -threads "$ffmpeg_threads" $options -vf "${filterstab}scale=trunc(oh*a/2)*2:$res$filters" -profile:v high -pix_fmt yuv420p -tune film -preset "$h264_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 "$audio" -movflags +faststart -f mp4 "$output_url"
 						
-						# VP9 encode
+						# VP9 2 pass encode
 						elif [ "$vformat" = "vp9" ]
 						then
-							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libvpx-vp9 -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -speed "$vp9_encodespeed" -crf "$crf" $audio -f webm "$output_url"
-						
-						# VP8 pass encode
+							if [ "$firstpass" = false ]
+							then
+								firstpass=true # only need to do first pass once
+								ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -c:v libvpx-vp9 -threads "$ffmpeg_threads" $options $filtersfull -pix_fmt yuv420p -speed "$vp9_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f webm "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
+							fi
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libvpx-vp9 -threads "$ffmpeg_threads" $options -vf "${filterstab}scale=trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -speed "$vp9_encodespeed" -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 $audio -f webm "$output_url"
+
+						# VP8 2 pass encode
 						elif [ "$vformat" = "vp8" ]
 						then
-							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libvpx -threads "$ffmpeg_threads" $options -vf scale="trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -crf "$crf" $audio -f webm "$output_url"
+							if [ "$firstpass" = false ]
+							then
+								firstpass=true # only need to do first pass once
+								ffmpeg -loglevel error -stats -nostdin -y -i "$filepath" -c:v libvpx -threads "$ffmpeg_threads" $options $filtersfull -pix_fmt yuv420p -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 1 -an -f webm "$nullpath" || continue 2 # if we can't encode the video, skip this file entirely. Possibly not a video file
+							fi
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libvpx -threads "$ffmpeg_threads" $options -vf "${filterstab}scale=trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M -pass 2 $audio -f webm "$output_url"
 						
+
+						# Theora 1 pass encode
+						elif [ "$vformat" = "ogv" ]
+						then
+							ffmpeg -loglevel error -stats -nostdin -i "$filepath" -c:v libtheora -threads "$ffmpeg_threads" $options -vf "${filterstab}scale=trunc(oh*a/2)*2:$res$filters" -pix_fmt yuv420p -b:v "$mbit"M -maxrate "$mbitmax"M -bufsize "$mbitmax"M $audio "$output_url"
+
 						fi
 					fi
 				done

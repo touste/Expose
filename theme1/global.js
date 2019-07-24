@@ -5,7 +5,7 @@ var videoloadnext=2; // preload videos less
 
 var resourcepath;
 
-var current_resolution = 1920;
+var current_resolution = 1080;
 var resolution = [];
 
 var disqus_loaded = false;
@@ -20,11 +20,11 @@ var video_formats={
 };
 
 function drawtext(){
-	var screen_width = $(window).width();
+	var screen_height = $(window).height();
 	
 	// set font size based on actual resolution, normalized at 14px/22px for 720
-	var fontsize = Math.floor(14*(screen_width/1280));
-	var lineheight = Math.floor(22*(screen_width/1280));
+	var fontsize = Math.floor(14*(screen_height/720));
+	var lineheight = Math.floor(22*(screen_height/720));
 	
 	if(fontsize < 11){
 		fontsize = 11;
@@ -64,8 +64,7 @@ $(document).ready(function(){
 	resourcepath = $('body').data('respath');
 	
 	// detect resolution
-	var saved_width = $.cookie('resolution');
-	var screen_width = $(window).width();
+	var saved_height= $.cookie('resolution');
 	
 	drawtext();
 	
@@ -83,15 +82,14 @@ $(document).ready(function(){
 		// use 16:9 XXXp conventions for labels. eg. 1080p, 1440p etc
 		var label;
 		
-		if(i == resolution.length-1 && v <= 1024){
+		if(i == resolution.length-1 && v <= 480){
 			label = 'mobile';
 		}
-		else if(v == 3840){
+		else if(v == 2160){
 			label = '4K';
 		}
 		else{
-			var h = parseInt((9/16)*v);
-			label = h+'p';
+			label = v+'p';
 		}
 		
 		selector += '<li data-res="'+v+'"><a href="#">'+label+'</a></li>';
@@ -111,8 +109,8 @@ $(document).ready(function(){
 			// update all urls
 			$('.slide').each(function(index){
 				var set_res = current_resolution;
-				if(parseInt($(this).data('imagewidth')) < current_resolution){
-					set_res = parseInt($(this).data('imagewidth'));
+				if(parseInt($(this).data('imageheight')) < current_resolution){
+					set_res = parseInt($(this).data('imageheight'));
 				}
 				var url = resourcepath + $(this).find('img.image').data('url');
 				$(this).find('img.image').not('.blank').prop('src',url+'/'+set_res+'.jpg');
@@ -141,11 +139,11 @@ $(document).ready(function(){
 	    }
 	});
   	
-	if(saved_width){
+	if(saved_height){
 		// used cookie value if set
 		$('#resolution li').each(function(i){
 			var val = parseInt($(this).data('res'));
-			if(saved_width == val){
+			if(saved_height == val){
 				$(this).trigger('click');
 				$(this).addClass('active');
 				return false;
@@ -155,10 +153,7 @@ $(document).ready(function(){
 	else{
 		// assume large->small order
 		var found = false;
-		var sidebar_width = $('#marker').width() + $('#sidebar').width();
-		// account for pixel density and sidebar width
-		var device_ratio = window.devicePixelRatio ? window.devicePixelRatio : 1;
-		var adjusted_screen_width = ($(window).width() - sidebar_width) * device_ratio;
+		var screen_height = $(window).height();
 		function setResolution(res){
 			$(res).trigger('click');
 			$(res).addClass('active');
@@ -166,13 +161,13 @@ $(document).ready(function(){
 		}
 		$('#resolution li').each(function(i){
 			var val = parseInt($(this).data('res'));
-			var image_density = val / adjusted_screen_width;
+			var image_density = val / screen_height;
 			if(image_density >= 0.9) {
 				setResolution(this);
 			}
 		});
 
-	// when largest image has density lower than threashold (large screen in use)
+	// when largest image has density lower than threshold (large screen in use)
 	if(!found){
 		$('#resolution li').first().trigger('click');
 	}
@@ -287,7 +282,7 @@ function scrollcheck(){
 			
 			var set_res = current_resolution;
 			if(parseInt($(this).data('imagewidth')) < current_resolution){
-				set_res = parseInt($(this).data('imagewidth'));
+				set_res = parseInt($(this).data('imageheight'));
 			}
 			
 			if(i-index >= -loadprev && i-index<=loadnext){
