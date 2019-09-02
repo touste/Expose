@@ -132,7 +132,7 @@ transition: background-color 1s;
 #sidebar h1{
 font: 300 14px/18px 'Lato',helvetica, arial, sans-serif;
 margin: 0;
-padding: 32px 0 20px 5px;
+padding: 38px 0 20px 5px;
 float: left;
 width: 100px;
 }
@@ -357,11 +357,11 @@ background-color: #000;
 	width: 0;
 	overflow: hidden;
 	
-	-webkit-transition: color 1s, background-color 1s, width 0.5s;
-	-moz-transition: color 1s, background-color 1s, width 0.5s;
-	-ms-transition: color 1s, background-color 1s, width 0.5s;
-	-o-transition: color 1s, background-color 1s, width 0.5s;
-	transition: color 1s, background-color 1s, width 0.5s;
+	-webkit-transition: color 1s, background-color 1s, width 1s;
+	-moz-transition: color 1s, background-color 1s, width 1s;
+	-ms-transition: color 1s, background-color 1s, width 1s;
+	-o-transition: color 1s, background-color 1s, width 1s;
+	transition: color 1s, background-color 1s, width 1s;
 	font-size: 14px;
 }
 
@@ -434,6 +434,8 @@ margin: 0;
 padding: 0;
 height: 100vh;
 width: 100%;
+max-width: 100%;
+max-height: 100%;
 clear: both;
 overflow: hidden;
 position: relative;
@@ -453,11 +455,11 @@ left: 0;
 -moz-opacity: 0;
 -webkit-opacity: 0;
 opacity: 0;
--webkit-transition: opacity 0.5s ease-in;
--moz-transition: opacity 0.5s ease-in;
--ms-transition: opacity 0.5s ease-in;
--o-transition: opacity 0.5s ease-in;
-transition: opacity 0.5s ease-in;
+-webkit-transition: opacity 1s ease-in;
+-moz-transition: opacity 1s ease-in;
+-ms-transition: opacity 1s ease-in;
+-o-transition: opacity 1s ease-in;
+transition: opacity 1s ease-in;
 }
 
 .progress.active{
@@ -472,11 +474,11 @@ top: 0;
 left: 0;
 height: 100%;
 background-color: #ddd;
--webkit-transition: width 0.5s ease-in;
--moz-transition: width 0.5s ease-in;
--ms-transition: width 0.5s ease-in;
--o-transition: width 0.5s ease-in;
-transition: width 0.5s ease-in;
+-webkit-transition: width 1s ease-in;
+-moz-transition: width 1s ease-in;
+-ms-transition: width 1s ease-in;
+-o-transition: width 1s ease-in;
+transition: width 1s ease-in;
 }
 
 a.internal{
@@ -496,11 +498,11 @@ z-index: 5;
 -moz-opacity: 1;
 -webkit-opacity: 1;
 opacity: 1;
--webkit-transition: opacity 0.5s ease-in;
--moz-transition: opacity 0.5s ease-in;
--ms-transition: opacity 0.5s ease-in;
--o-transition: opacity 0.5s ease-in;
-transition: opacity 0.5s ease-in;
+-webkit-transition: opacity 1s ease-in;
+-moz-transition: opacity 1s ease-in;
+-ms-transition: opacity 1s ease-in;
+-o-transition: opacity 1s ease-in;
+transition: opacity 1s ease-in;
 }
 
 .post a:hover{
@@ -632,11 +634,11 @@ float: left;
 display: block;
 min-height: 100px;
 font: 300 48px 'Lato',helvetica, arial, sans-serif;
--webkit-transition: all 0.5s;
--moz-transition: all 0.5s;
--ms-transition: all 0.5s;
--o-transition: all 0.5s;
-transition: all 0.5s;
+-webkit-transition: all 1s;
+-moz-transition: all 1s;
+-ms-transition: all 1s;
+-o-transition: all 1s;
+transition: all 1s;
 }
 
 .prev a{

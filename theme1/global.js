@@ -56,10 +56,6 @@ function redrawtext(){
 
 $(document).ready(function(){
 
-	// set slide heights to prevent reflow
-	//$('.slide').each(function(){
-	//	$(this).css('height', ($(window).width()*$(this).data('imageheight')/$(this).data('imagewidth')) + 'px');
-	//});
 	
 	resourcepath = $('body').data('respath');
 	
@@ -193,17 +189,6 @@ $(document).ready(function(){
 		$('.icon').addClass('webkit');
 	}
 	
-	$('#sharebutton').click(function(){
-		if($('#share').hasClass('active')){
-			$('#share').removeClass('active');
-		}
-		else{
-			$('#share').addClass('active');
-		}
-		$('#resolution').removeClass('active');
-		return false;
-	});
-	
 	$('#resbutton').click(function(){
 		if($('#resolution').hasClass('active')){
 			$('#resolution').removeClass('active');
@@ -219,22 +204,6 @@ $(document).ready(function(){
 	$('#download').click(function(){
 		var url = $(current_slide).find('img.image').data('url');
 		window.open(resourcepath + url+'/'+url+'.zip');
-		return false;
-	});
-	
-	// text toggle
-	$('#textbutton').click(function(){
-		if($(this).hasClass('active')){
-			$('.post').addClass('hidden');
-			$(this).removeClass('active');
-			$(this).find('.text').text('show text');
-		}
-		else{
-			$('.post').removeClass('hidden');
-			$(this).addClass('active');
-			$(this).find('.text').text('hide text');
-		}
-		
 		return false;
 	});
 	
@@ -350,11 +319,6 @@ function scrollcheck(){
 		var resbackground = $(current_slide).data('color3');
 		if(resbackground){
 			$('#resolution').css('background-color',resbackground);
-		}
-		
-		var sharebackground = $(current_slide).data('color4');
-		if(sharebackground){
-			$('#share').css('background-color',sharebackground);
 		}
 		
 		var highcolor = $(current_slide).data('textcolor');
@@ -611,6 +575,43 @@ function pad(n, width, z) {
   n = n + '';
   return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
 }
+
+
+//(function() {
+//  
+//	var delay = false;
+//
+//	$(document).on('mousewheel DOMMouseScroll', function(event) {
+//		event.preventDefault();
+//		if(delay) return;
+//
+//		delay = true;
+//		setTimeout(function(){delay = false},200)
+//
+//		var wd = event.originalEvent.wheelDelta || -event.originalEvent.detail;
+//
+//		var a= document.getElementsByClassName('slide');
+//
+//		if(wd < 0) {
+//			for(var i = 0 ; i < a.length ; i++) {
+//				var t = a[i].getClientRects()[0].top;
+//				if(t >= 40) break;
+//			}
+//		}
+//		else {
+//			for(var i = a.length-1 ; i >= 0 ; i--) {
+//				var t = a[i].getClientRects()[0].top;
+//				if(t < -20) break;
+//			}
+//		}
+//		if(i >= 0 && i < a.length) {
+//			$('html,body').animate({
+//				scrollTop: a[i].offsetTop
+//			});
+//		}
+//	});
+//})();
+
 
 // add back browser detect
 jQuery.uaMatch = function( ua ) {
